@@ -31,13 +31,25 @@ Your solution must:
 - Generate one prediction row for every request in `dataset/deletion_requests.csv`
 - Write the final predictions to `output.csv` in the repository root
 
-Run the starter Python entry point with:
+Run the auditor from the repository root:
 
 ```bash
 python3 code/main.py
+python3 -m unittest tests.test_audit
+python3 code/evaluation/main.py
 ```
 
+`python3 code/main.py` reads `dataset/deletion_requests.csv`, reconstructs each subject's identifiers and the evidence available at `audit_at`, applies `dataset/deletion_rules.csv`, and writes `output.csv` in the repository root. The run is deterministic and does not call a model. Screenshot OCR uses the `tesseract` binary when it is installed; PDF text uses `pypdf` when it is installed and a small built-in extractor otherwise. No API key is required.
+
 The blank template at `dataset/output.csv` is provided as a reference. Your final generated file for submission must be the root-level `output.csv`.
+
+## How the auditor decides
+
+1. **Intent.** A request is `NOT_APPLICABLE` only when the text asks for access, correction, export, a marketing opt-out, or account help and says the account should stay. Every other request is treated as an authorized deletion.
+2. **Identity.** The request email is resolved through `user_identities.csv` and `user_audit_log.csv`. Emails, phones, and email hashes that belonged to the person at or before `audit_at` are all searched. Historical addresses such as a previous Yahoo mailbox still map to the current user.
+3. **Evidence.** SQL snapshots are loaded in SQLite. JSON, logs, handover notes, PDFs, and screenshots are parsed into resource observations. Log lines are joined on `trace_id` so a lookup key and a later `resource_id` describe one fact. A file packaged after `audit_at` is not cited when an earlier snapshot already proves the same state. Event timestamps still let the auditor see facts that occurred before the cutoff.
+4. **Policy.** Delete, redact, anonymize, retain, block-restore, and disable-flow actions come from `deletion_rules.csv`. Replica drift counts as still present when any copy at the latest observation time still stores the row. Reported workflow results are not treated as proof.
+5. **Steps.** Findings, remediation, and verification follow the operation order in `problem_statement.md`, then `system_id` and `resource_id`. Incomplete cases cite evidence only on findings. Complete cases cite the proving evidence on every verification step.
 
 
 ## Dataset
